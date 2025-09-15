@@ -689,6 +689,7 @@ impl Context<'_> {
                 .map_err(|source| TpmError::TSSCreateEKError { source })?,
         };
 
+        println!("\nBefore Error in retrieving EK certificate\n");
         let cert = match ek::retrieve_ek_pubcert(&mut ctx, alg.into()) {
             Ok(cert) => match self.check_ek_cert(&cert) {
                 Ok(cert_checked) => Some(cert_checked),
@@ -702,6 +703,7 @@ impl Context<'_> {
                 None
             }
         };
+        println!("\nAfter error\n");
 
         let (tpm_pub, _, _) = ctx
             .read_public(key_handle)
@@ -745,6 +747,12 @@ impl Context<'_> {
         key_alg: EncryptionAlgorithm,
         sign_alg: SignAlgorithm,
     ) -> Result<AKResult> {
+        //println!("\nI am HERE\n");
+        println!("{:?}", handle);
+        println!("{:?}", hash_alg);
+        println!("{:?}", key_alg);
+        println!("{:?}", sign_alg);
+        //println!("Check this:\n\n {:?}\n", sign_alg.into());
         let ak = ak::create_ak_2(
             &mut self.inner.lock().unwrap(), //#[allow_ci]
             handle,
@@ -1045,6 +1053,8 @@ impl Context<'_> {
                         },
                     )?,
                 )),
+            // Mldsa "asym_alg"
+            AsymmetricAlgorithm::Mldsa => todo!(),
             // Defaulting to RSA on null
             AsymmetricAlgorithm::Null => PublicBuilder::new()
                 .with_public_algorithm(PublicAlgorithm::Rsa)
@@ -1265,6 +1275,8 @@ impl Context<'_> {
                         },
                     )?,
                 )),
+            //Mldsa asym_alg
+            AsymmetricAlgorithm::Mldsa => todo!(),
             AsymmetricAlgorithm::Null => PublicBuilder::new()
                 .with_public_algorithm(PublicAlgorithm::Rsa)
                 .with_name_hashing_algorithm(HashingAlgorithm::Sha256)

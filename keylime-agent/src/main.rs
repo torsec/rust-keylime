@@ -333,10 +333,13 @@ async fn main() -> Result<()> {
     )?;
 
     // Gather EK values and certs
+    // ??
+    //println!("I AM HERE");
     let ek_result = match config.ek_handle.as_ref() {
         "" => ctx.create_ek(tpm_encryption_alg, None)?,
         s => ctx.create_ek(tpm_encryption_alg, Some(s))?,
     };
+    //println!("I AM HERE");
 
     // Calculate the SHA-256 hash of the public key in PEM format
     let ek_hash = hash_ek::hash_ek_pubkey(ek_result.public.clone())?;
@@ -411,6 +414,8 @@ async fn main() -> Result<()> {
     };
 
     // Use old AK or generate a new one and update the AgentData
+    println!("OLD AK\n");
+    // println!("{:?}\n", tpm_signing_alg);
     let (ak_handle, ak) = match old_ak {
         Some((ak_handle, ak)) => (ak_handle, ak),
         None => {
@@ -974,6 +979,7 @@ mod testing {
 
             // Gather EK and AK key values and certs
             let ek_result = ctx.create_ek(tpm_encryption_alg, None).unwrap(); //#[allow_ci]
+            println!("Test AK\n");
             let ak_result = ctx
                 .create_ak(
                     ek_result.key_handle,

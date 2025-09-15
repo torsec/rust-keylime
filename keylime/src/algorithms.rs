@@ -13,6 +13,7 @@ use tss_esapi::{
         },
         ecc::EccCurve,
         key_bits::RsaKeyBits,
+        mldsa::Mldsa,
     },
     structures::{HashScheme, SignatureScheme},
 };
@@ -137,6 +138,7 @@ pub enum EncryptionAlgorithm {
     Ecc384,
     Ecc521,
     EccSm2,
+    Mldsa87,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -167,6 +169,7 @@ pub fn get_key_class(&tpm_encryption_alg: &EncryptionAlgorithm) -> KeyClass {
         EncryptionAlgorithm::Ecc384 => KeyClass::Asymmetric,
         EncryptionAlgorithm::Ecc521 => KeyClass::Asymmetric,
         EncryptionAlgorithm::EccSm2 => KeyClass::Asymmetric,
+        EncryptionAlgorithm::Mldsa87 => KeyClass::Asymmetric,
     }
 }
 
@@ -182,6 +185,7 @@ pub fn get_key_size(tpm_encryption_alg: &EncryptionAlgorithm) -> usize {
         EncryptionAlgorithm::Ecc384 => 384,
         EncryptionAlgorithm::Ecc521 => 521,
         EncryptionAlgorithm::EccSm2 => 256,
+        &EncryptionAlgorithm::Mldsa87 => 4896,
     }
 }
 
@@ -198,6 +202,7 @@ impl From<EncryptionAlgorithm> for AsymmetricAlgorithm {
             EncryptionAlgorithm::Ecc384 => AsymmetricAlgorithm::Ecc,
             EncryptionAlgorithm::Ecc521 => AsymmetricAlgorithm::Ecc,
             EncryptionAlgorithm::EccSm2 => AsymmetricAlgorithm::Ecc,
+            EncryptionAlgorithm::Mldsa87 => AsymmetricAlgorithm::Mldsa,
         }
     }
 }
@@ -235,6 +240,9 @@ impl From<EncryptionAlgorithm> for AsymmetricAlgorithmSelection {
             EncryptionAlgorithm::EccSm2 => {
                 AsymmetricAlgorithmSelection::Ecc(EccCurve::Sm2P256)
             }
+            EncryptionAlgorithm::Mldsa87 => {
+                AsymmetricAlgorithmSelection::Mldsa(Mldsa::Mldsa87)
+            }
         }
     }
 }
@@ -263,6 +271,7 @@ impl TryFrom<&str> for EncryptionAlgorithm {
             "ecc_nist_p521" => Ok(EncryptionAlgorithm::Ecc521),
             "ecc_sm2" => Ok(EncryptionAlgorithm::EccSm2),
             "ecc_sm2_p256" => Ok(EncryptionAlgorithm::EccSm2),
+            "mldsa" => Ok(EncryptionAlgorithm::Mldsa87),
             _ => Err(AlgorithmError::UnsupportedEncryptionAlgorithm(
                 value.into(),
             )),
@@ -283,6 +292,7 @@ impl fmt::Display for EncryptionAlgorithm {
             EncryptionAlgorithm::Ecc384 => "ecc384",
             EncryptionAlgorithm::Ecc521 => "ecc521",
             EncryptionAlgorithm::EccSm2 => "ecc_sm2",
+            EncryptionAlgorithm::Mldsa87 => "mldsa",
         };
         write!(f, "{value}")
     }
@@ -294,6 +304,7 @@ pub enum SignAlgorithm {
     RsaPss,
     EcDsa,
     //    EcDaa, // Requires special SignatureScheme construction that is not yet implemented
+    Mldsa87,
     EcSchnorr,
 }
 
@@ -308,6 +319,7 @@ impl SignAlgorithm {
             SignAlgorithm::RsaPss => SignatureScheme::RsaPss { hash_scheme },
             SignAlgorithm::EcDsa => SignatureScheme::EcDsa { hash_scheme },
             //            SignAlgorithm::EcDaa => SignatureScheme::EcDaa{/*TODO*/},
+            SignAlgorithm::Mldsa87 => SignatureScheme::Mldsa { hash_scheme },
             SignAlgorithm::EcSchnorr => {
                 SignatureScheme::EcSchnorr { hash_scheme }
             }
@@ -322,6 +334,7 @@ impl From<SignAlgorithm> for SignatureSchemeAlgorithm {
             SignAlgorithm::RsaPss => SignatureSchemeAlgorithm::RsaPss,
             SignAlgorithm::EcDsa => SignatureSchemeAlgorithm::EcDsa,
             //            SignAlgorithm::ECDAA => SignatureSchemeAlgorithm::EcDaa,
+            SignAlgorithm::Mldsa87 => SignatureSchemeAlgorithm::Mldsa,
             SignAlgorithm::EcSchnorr => SignatureSchemeAlgorithm::EcSchnorr,
         }
     }
@@ -336,6 +349,7 @@ impl TryFrom<&str> for SignAlgorithm {
             "rsapss" => Ok(SignAlgorithm::RsaPss),
             "ecdsa" => Ok(SignAlgorithm::EcDsa),
             //            "ecdaa" => Ok(SignAlgorithm::EcDaa),
+            "mldsa" => Ok(SignAlgorithm::Mldsa87),
             "ecschnorr" => Ok(SignAlgorithm::EcSchnorr),
             _ => {
                 Err(AlgorithmError::UnsupportedSigningAlgorithm(value.into()))
@@ -351,6 +365,7 @@ impl fmt::Display for SignAlgorithm {
             SignAlgorithm::RsaPss => "rsapss",
             SignAlgorithm::EcDsa => "ecdsa",
             //           SignAlgorithm::ECDAA => "ecdaa",
+            &SignAlgorithm::Mldsa87 => "mldsa",
             SignAlgorithm::EcSchnorr => "ecschnorr",
         };
         write!(f, "{value}")
@@ -455,6 +470,7 @@ mod tests {
             (EncryptionAlgorithm::Ecc384, KeyClass::Asymmetric),
             (EncryptionAlgorithm::Ecc521, KeyClass::Asymmetric),
             (EncryptionAlgorithm::EccSm2, KeyClass::Asymmetric),
+            (EncryptionAlgorithm::Mldsa87, KeyClass::Asymmetric),
         ];
         for (alg, kclass) in algorithms {
             let key_class = get_key_class(&alg);
