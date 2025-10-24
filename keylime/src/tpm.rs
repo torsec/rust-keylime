@@ -754,7 +754,7 @@ impl Context<'_> {
         debug!("{:?}", hash_alg);
         debug!("{:?}", key_alg);
         debug!("{:?}", sign_alg);
-        debug!("Check this:\n\n {:?}\n", sign_alg.into());
+        // debug!("Check this:\n\n {:?}\n", sign_alg.into());
         let ak = ak::create_ak_2(
             &mut self.inner.lock().unwrap(), //#[allow_ci]
             handle,
