@@ -319,7 +319,7 @@ impl SignAlgorithm {
             SignAlgorithm::RsaPss => SignatureScheme::RsaPss { hash_scheme },
             SignAlgorithm::EcDsa => SignatureScheme::EcDsa { hash_scheme },
             //            SignAlgorithm::EcDaa => SignatureScheme::EcDaa{/*TODO*/},
-            SignAlgorithm::Mldsa87 => SignatureScheme::Mldsa { hash_scheme },
+            SignAlgorithm::Mldsa87 => SignatureScheme::Mldsa87 { hash_scheme },
             SignAlgorithm::EcSchnorr => {
                 SignatureScheme::EcSchnorr { hash_scheme }
             }
