@@ -353,6 +353,7 @@ impl RegistrarClient {
         if ai.enabled_api_versions.contains(&self.api_version.as_ref()) {
             return self.try_register_agent(ai, &self.api_version).await;
         }
+        debug!("I am in register_agent\n\n");
 
         // In case the registrar does not support the '/version' endpoint, try the enabled API
         // versions

@@ -9,7 +9,7 @@ use crate::{
     tpm::{self},
 };
 use base64::{engine::general_purpose, Engine as _};
-use log::{error, info};
+use log::{error, info, debug};
 use openssl::x509::X509;
 use tss_esapi::{
     handles::KeyHandle, structures::PublicBuffer, traits::Marshall,
@@ -49,6 +49,8 @@ pub async fn register_agent(
     let ek_pub =
         &PublicBuffer::try_from(aa.ek_result.public.clone())?.marshall()?;
 
+    debug!("I am in register_agent.rs. Line 52\n\n");
+    debug!("The AK public is {:?}\n\n", ak_pub);
     let mut ai_builder = AgentIdentityBuilder::new()
         .ak_pub(ak_pub)
         .ek_pub(ek_pub)
@@ -113,6 +115,7 @@ pub async fn register_agent(
         .build()
         .await?;
 
+    info!("Before requesting keyblob material. I.E. Before registrar_client.rs\n\n");
     // Request keyblob material
     let keyblob = registrar_client.register_agent(&ai).await?;
 

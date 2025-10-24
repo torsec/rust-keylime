@@ -689,7 +689,7 @@ impl Context<'_> {
                 .map_err(|source| TpmError::TSSCreateEKError { source })?,
         };
 
-        println!("\nBefore Error in retrieving EK certificate\n");
+        error!("\nBefore Error in retrieving EK certificate\n");
         let cert = match ek::retrieve_ek_pubcert(&mut ctx, alg.into()) {
             Ok(cert) => match self.check_ek_cert(&cert) {
                 Ok(cert_checked) => Some(cert_checked),
@@ -703,12 +703,13 @@ impl Context<'_> {
                 None
             }
         };
-        println!("\nAfter error\n");
+        error!("\nAfter error\n");
 
         let (tpm_pub, _, _) = ctx
             .read_public(key_handle)
             .map_err(|source| TpmError::TSSReadPublicError { source })?;
 
+        debug!("After Read public\n");
         let chain = match read_ek_ca_chain(&mut ctx) {
             Ok(der_data) => {
                 if !der_data.is_empty() {
@@ -720,7 +721,8 @@ impl Context<'_> {
                 warn!("Failed reading EK certificate chain from TPM NVRAM");
                 None
             }
-        };
+        };    
+        debug!("After EK ca chain\n");
 
         Ok(EKResult {
             key_handle,
@@ -747,12 +749,12 @@ impl Context<'_> {
         key_alg: EncryptionAlgorithm,
         sign_alg: SignAlgorithm,
     ) -> Result<AKResult> {
-        //println!("\nI am HERE\n");
-        println!("{:?}", handle);
-        println!("{:?}", hash_alg);
-        println!("{:?}", key_alg);
-        println!("{:?}", sign_alg);
-        //println!("Check this:\n\n {:?}\n", sign_alg.into());
+        debug!("\nI am HERE\n");
+        debug!("{:?}", handle);
+        debug!("{:?}", hash_alg);
+        debug!("{:?}", key_alg);
+        debug!("{:?}", sign_alg);
+        debug!("Check this:\n\n {:?}\n", sign_alg.into());
         let ak = ak::create_ak_2(
             &mut self.inner.lock().unwrap(), //#[allow_ci]
             handle,
