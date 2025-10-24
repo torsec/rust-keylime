@@ -51,7 +51,7 @@ use keylime::{
     agent_data::AgentData,
     agent_registration::{AgentRegistration, AgentRegistrationConfig},
     config,
-    crypto::{self, x509::CertificateBuilder},
+    crypto::{self, hash, /* convert, convert_msg,*/ x509::CertificateBuilder},
     device_id::{DeviceID, DeviceIDBuilder},
     error::{Error, Result},
     hash_ek,
@@ -64,8 +64,7 @@ use keylime::{
 };
 use log::*;
 use openssl::{
-    pkey::{PKey, Private, Public},
-    x509::X509,
+    hash::MessageDigest, pkey::{PKey, Private, Public}, sha::sha256, x509::X509
 };
 use std::{
     convert::TryFrom,
@@ -334,15 +333,29 @@ async fn main() -> Result<()> {
 
     // Gather EK values and certs
     // ??
-    //println!("I AM HERE");
+    debug!("Before create EK");
     let ek_result = match config.ek_handle.as_ref() {
         "" => ctx.create_ek(tpm_encryption_alg, None)?,
         s => ctx.create_ek(tpm_encryption_alg, Some(s))?,
     };
-    //println!("I AM HERE");
+    debug!("After create EK");
+
+    trace!("The public key is: {:?}", ek_result.public);
+    trace!("The name hashing is:\n {:?}\n", ek_result.public.name_hashing_algorithm());
+    trace!("The unique identifier is:\n{:?}\n", ek_result.public.unique_identifier_mldsa());
+
+    // Hash no PEM
+    let hash_algo = ek_result.public.name_hashing_algorithm();
+
+    let pre_hash = hash(ek_result.public.unique_identifier_mldsa(), MessageDigest::sha256())?;
+    let ek_hash = hex::encode(pre_hash);
 
     // Calculate the SHA-256 hash of the public key in PEM format
-    let ek_hash = hash_ek::hash_ek_pubkey(ek_result.public.clone())?;
+    // let ek_hash = hash_ek::hash_ek_pubkey(ek_result.public.clone())?;
+    // Old hash version
+    // let ek_hash =  sha256(ek_result.public.clone());
+    // let ek_hash = hash(ek_result.public, sha256);
+    debug!("I AM HERE");
 
     // Replace the uuid with the actual EK hash if the option was set.
     // We cannot do that when the configuration is loaded initially,
@@ -414,21 +427,23 @@ async fn main() -> Result<()> {
     };
 
     // Use old AK or generate a new one and update the AgentData
-    println!("OLD AK\n");
-    // println!("{:?}\n", tpm_signing_alg);
+    debug!("Before choosing to Create a NEW AK or Loading an OLD AK\n");
     let (ak_handle, ak) = match old_ak {
         Some((ak_handle, ak)) => (ak_handle, ak),
         None => {
+            debug!("Key Handle:\n\n{:?}\n", ek_result.key_handle);
             let new_ak = ctx.create_ak(
                 ek_result.key_handle,
                 tpm_hash_alg,
                 tpm_encryption_alg,
                 tpm_signing_alg,
             )?;
+            debug!("After create_ak\n\n");
             let ak_handle = ctx.load_ak(ek_result.key_handle, &new_ak)?;
             (ak_handle, new_ak)
         }
     };
+    debug!("In the main.rs after Load_ak\n\n");
 
     // Store new AgentData
     let agent_data_new = AgentData::create(
@@ -611,6 +626,7 @@ async fn main() -> Result<()> {
         ssl_context = None;
         warn!("mTLS disabled, Tenant and Verifier will reach out to agent via HTTP");
     }
+    debug!("Before Agent Registration Config\n\n");
 
     let ac = AgentRegistrationConfig {
         contact_ip: config.contact_ip.clone(),
@@ -620,6 +636,7 @@ async fn main() -> Result<()> {
         enable_iak_idevid: config.enable_iak_idevid,
         ek_handle: config.ek_handle.clone(),
     };
+    debug!("Before Agent Registration\n\n");
 
     let aa = AgentRegistration {
         ak,
@@ -639,6 +656,7 @@ async fn main() -> Result<()> {
             error!("Failed to register agent: {e:?}");
         }
     }
+    debug!("After receiving response from Registrar\n\n");
 
     let (mut payload_tx, mut payload_rx) =
         mpsc::channel::<payloads::PayloadMessage>(1);

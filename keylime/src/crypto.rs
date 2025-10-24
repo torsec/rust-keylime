@@ -24,6 +24,7 @@ use openssl::{
     x509::X509,
 };
 use picky_asn1_x509::SubjectPublicKeyInfo;
+use tss_esapi::interface_types::algorithm::HashingAlgorithm;
 use std::{
     fs::{read_to_string, set_permissions, Permissions},
     io::Write,
@@ -361,13 +362,17 @@ pub fn tss_pubkey_to_pem(
     // Converting Public TSS key to PEM
     let key = SubjectPublicKeyInfo::try_from(pubkey)
         .map_err(CryptoError::SubjectPublicKeyInfoFromTSSPublicError)?;
+    trace!("Ok. After retrieving Subject Public Key Info\n");
     let key_der = picky_asn1_der::to_vec(&key)
         .map_err(CryptoError::SubjectPublicKeyInfoToDERError)?;
+    trace!("Ok. After ASN1 DER conversion\n");
     let openssl_key = PKey::public_key_from_der(&key_der)
         .map_err(CryptoError::PublicKeyFromDERError)?;
+    trace!("Ok. After OpenSSL Public Key from DER\n");
     let pem = openssl_key
         .public_key_to_pem()
         .map_err(CryptoError::PublicKeyToPEMError)?;
+    trace!("Ok. After PEM conversion\n");
 
     Ok(pem)
 }
@@ -381,6 +386,20 @@ pub fn hash(
         .map_err(CryptoError::HashError)?
         .to_vec())
 }
+
+// /// Convert hash object in a pure String
+// /// An empty string if result is Err, or if the bytes are invalid UTF-8
+// pub fn convert(result: Result<Vec<u8>, CryptoError>) -> String {
+//     String::from_utf8(result.unwrap_or_default()).unwrap_or_default()
+// }
+
+// /// Convert an HashingAlgotithm into a MessageDigest
+// pub fn convert_msg(result: HashingAlgorithm) -> MessageDigest {
+//     match result {
+//         HashingAlgorithm::Sha256 => MessageDigest::sha256(),
+//         _ => None,
+//     }
+// }
 
 /// Check an x509 certificate contains a specific public key
 pub fn check_x509_key(
