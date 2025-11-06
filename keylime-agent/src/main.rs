@@ -87,6 +87,7 @@ use tss_esapi::{
     structures::{Auth, Data, Digest, MaxBuffer, PublicBuffer},
     traits::Marshall,
     Context,
+    constants::PropertyTag,
 };
 use uuid::Uuid;
 
@@ -330,6 +331,9 @@ async fn main() -> Result<()> {
     let tpm_signing_alg = keylime::algorithms::SignAlgorithm::try_from(
         config.tpm_signing_alg.as_ref(),
     )?;
+    debug!("The tpm encryption algorithm is: {:?}", tpm_encryption_alg);
+    debug!("The tpm hash algorithm is: {:?}", tpm_hash_alg);
+    debug!("The tpm signing algorithm is: {:?}", tpm_signing_alg);
 
     // Gather EK values and certs
     // ??
@@ -340,22 +344,28 @@ async fn main() -> Result<()> {
     };
     debug!("After create EK");
 
-    trace!("The public key is: {:?}", ek_result.public);
-    trace!("The name hashing is:\n {:?}\n", ek_result.public.name_hashing_algorithm());
-    trace!("The unique identifier is:\n{:?}\n", ek_result.public.unique_identifier_mldsa());
+    let ek_hash = match tpm_signing_alg {
+        keylime::algorithms::SignAlgorithm::Mldsa87 => {
+            trace!("The public key is: {:?}", ek_result.public.unique_identifier_mldsa());
+            trace!("The name hashing is:\n {:?}\n", ek_result.public.name_hashing_algorithm());
+            trace!("The unique identifier is:\n{:?}\n", ek_result.public.unique_identifier_mldsa());
 
-    // Hash no PEM
-    let hash_algo = ek_result.public.name_hashing_algorithm();
+            // Hash no PEM
+            let hash_algo = ek_result.public.name_hashing_algorithm();
 
-    let pre_hash = hash(ek_result.public.unique_identifier_mldsa(), MessageDigest::sha256())?;
-    let ek_hash = hex::encode(pre_hash);
+            let pre_hash = hash(ek_result.public.unique_identifier_mldsa(), MessageDigest::sha256())?;
+            hex::encode(pre_hash)
+        }
+        _ => {
+            // Calculate the SHA-256 hash of the public key in PEM format
+        hash_ek::hash_ek_pubkey(ek_result.public.clone())?
+        }
+    };
 
-    // Calculate the SHA-256 hash of the public key in PEM format
-    // let ek_hash = hash_ek::hash_ek_pubkey(ek_result.public.clone())?;
     // Old hash version
     // let ek_hash =  sha256(ek_result.public.clone());
     // let ek_hash = hash(ek_result.public, sha256);
-    debug!("I AM HERE");
+    debug!("After hask_ek processing");
 
     // Replace the uuid with the actual EK hash if the option was set.
     // We cannot do that when the configuration is loaded initially,
