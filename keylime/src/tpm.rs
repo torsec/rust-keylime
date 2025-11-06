@@ -652,6 +652,8 @@ impl Context<'_> {
     ) -> Result<EKResult> {
         let mut ctx = self.inner.lock().unwrap(); //#[allow_ci]
 
+        debug!("I am in create_ek");
+        let no_cert = true;
         // Retrieve EK handle, EK pub cert, and TPM pub object
         let key_handle: KeyHandle = match handle {
             Some(v) => {
@@ -689,21 +691,24 @@ impl Context<'_> {
                 .map_err(|source| TpmError::TSSCreateEKError { source })?,
         };
 
-        error!("\nBefore Error in retrieving EK certificate\n");
-        let cert = match ek::retrieve_ek_pubcert(&mut ctx, alg.into()) {
-            Ok(cert) => match self.check_ek_cert(&cert) {
-                Ok(cert_checked) => Some(cert_checked),
+        let mut cert = None;
+        if !no_cert{
+            warn!("Before Error in retrieving EK certificate");
+            cert = match ek::retrieve_ek_pubcert(&mut ctx, alg.into()) {
+                Ok(cert) => match self.check_ek_cert(&cert) {
+                    Ok(cert_checked) => Some(cert_checked),
+                    Err(_) => {
+                        warn!("EK certificate in TPM NVRAM is not ASN.1 DER encoded");
+                        Some(cert)
+                    }
+                },
                 Err(_) => {
-                    warn!("EK certificate in TPM NVRAM is not ASN.1 DER encoded");
-                    Some(cert)
+                    warn!("No EK certificate found in TPM NVRAM");
+                    None
                 }
-            },
-            Err(_) => {
-                warn!("No EK certificate found in TPM NVRAM");
-                None
-            }
-        };
-        error!("\nAfter error\n");
+            };
+            warn!("After error in retrieving EK certificate");
+        }   
 
         let (tpm_pub, _, _) = ctx
             .read_public(key_handle)
