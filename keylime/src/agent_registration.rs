@@ -9,7 +9,7 @@ use crate::{
     tpm::{self},
 };
 use base64::{engine::general_purpose, Engine as _};
-use log::{error, info, debug};
+use log::{error, info, debug, trace};
 use openssl::x509::X509;
 use tss_esapi::{
     handles::KeyHandle, structures::PublicBuffer, traits::Marshall,
@@ -49,8 +49,8 @@ pub async fn register_agent(
     let ek_pub =
         &PublicBuffer::try_from(aa.ek_result.public.clone())?.marshall()?;
 
-    debug!("I am in register_agent.rs. Line 52\n\n");
-    debug!("The AK public is {:?}\n\n", ak_pub);
+    debug!("I am in register_agent.rs. Line 52\n");
+    trace!("The AK public is {:?}\n\n", ak_pub);
     let mut ai_builder = AgentIdentityBuilder::new()
         .ak_pub(ak_pub)
         .ek_pub(ek_pub)
@@ -66,6 +66,7 @@ pub async fn register_agent(
     }
 
     // If the certificate is not None add it to the builder
+    // To Check NO certficate
     if let Some(ekchain) = aa.ek_result.to_pem() {
         ai_builder = ai_builder.ek_cert(ekchain);
     }
@@ -121,11 +122,13 @@ pub async fn register_agent(
 
     info!("SUCCESS: Agent {} registered", &aa.agent_uuid);
 
+    debug!("Just before Activate Credential");
     let key = ctx.activate_credential(
         keyblob,
         aa.ak_handle,
         aa.ek_result.key_handle,
     )?;
+    debug!("Just after Activate Credential");
 
     // Flush EK if we created it
     if aa.agent_registration_config.ek_handle.is_empty() {

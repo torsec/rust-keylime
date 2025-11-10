@@ -652,7 +652,7 @@ impl Context<'_> {
     ) -> Result<EKResult> {
         let mut ctx = self.inner.lock().unwrap(); //#[allow_ci]
 
-        debug!("I am in create_ek");
+        debug!("I am in create_ek the algorithm for EK is: {:?}", alg);
         let no_cert = true;
         // Retrieve EK handle, EK pub cert, and TPM pub object
         let key_handle: KeyHandle = match handle {
@@ -714,7 +714,7 @@ impl Context<'_> {
             .read_public(key_handle)
             .map_err(|source| TpmError::TSSReadPublicError { source })?;
 
-        debug!("After Read public\n");
+        debug!("After Read public");
         let chain = match read_ek_ca_chain(&mut ctx) {
             Ok(der_data) => {
                 if !der_data.is_empty() {
@@ -727,7 +727,7 @@ impl Context<'_> {
                 None
             }
         };    
-        debug!("After EK ca chain\n");
+        debug!("After EK ca chain");
 
         Ok(EKResult {
             key_handle,
@@ -754,11 +754,11 @@ impl Context<'_> {
         key_alg: EncryptionAlgorithm,
         sign_alg: SignAlgorithm,
     ) -> Result<AKResult> {
-        debug!("\nI am HERE\n");
+        debug!("I am in create_ak");
         debug!("{:?}", handle);
         debug!("{:?}", hash_alg);
         debug!("{:?}", key_alg);
-        debug!("{:?}", sign_alg);
+        debug!("{:?}\n", sign_alg);
         // debug!("Check this:\n\n {:?}\n", sign_alg.into());
         let ak = ak::create_ak_2(
             &mut self.inner.lock().unwrap(), //#[allow_ci]

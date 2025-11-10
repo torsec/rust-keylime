@@ -374,12 +374,17 @@ async fn main() -> Result<()> {
         "hash_ek" => ek_hash.clone(),
         s => s.to_string(),
     };
+    debug!("The replaced config.uuid (hash of EK) (if option is set) is: {:?}", config.uuid);
 
     let agent_uuid = config.uuid.clone();
+    debug!("The original config.uuid (that now is the agent_uuid) was: {:?}", agent_uuid);
 
     // Try to load persistent Agent data
-    let old_ak = match config.agent_data_path.as_ref() {
+    let old_ak = match config.agent_data_path.as_ref() {    
+        // a riga 31 di /keylime/src/config/base.rs -->
+        // pub static DEFAULT_AGENT_DATA_PATH: &str = "agent_data.json";
         "" => {
+            // il file "agent_data.json" non è presente in /var/lib/keylime attualmente. Il parametro agent_data_path è = "default".
             info!("Agent Data path not set in the configuration file");
             None
         }
@@ -437,23 +442,24 @@ async fn main() -> Result<()> {
     };
 
     // Use old AK or generate a new one and update the AgentData
-    debug!("Before choosing to Create a NEW AK or Loading an OLD AK\n");
+    debug!("Before choosing to Create a NEW AK or Loading an OLD AK");
+    debug!("The AK now is: {:?}", old_ak);
     let (ak_handle, ak) = match old_ak {
         Some((ak_handle, ak)) => (ak_handle, ak),
         None => {
-            debug!("Key Handle:\n\n{:?}\n", ek_result.key_handle);
+            debug!("Endorsment Key Handle: {:?}\n", ek_result.key_handle);
             let new_ak = ctx.create_ak(
                 ek_result.key_handle,
                 tpm_hash_alg,
                 tpm_encryption_alg,
                 tpm_signing_alg,
             )?;
-            debug!("After create_ak\n\n");
+            debug!("After create_ak\n");
             let ak_handle = ctx.load_ak(ek_result.key_handle, &new_ak)?;
             (ak_handle, new_ak)
         }
     };
-    debug!("In the main.rs after Load_ak\n\n");
+    debug!("In the main.rs after Load_ak");
 
     // Store new AgentData
     let agent_data_new = AgentData::create(
@@ -462,6 +468,7 @@ async fn main() -> Result<()> {
         &ak,
         ek_hash.as_bytes(),
     )?;
+    trace!("The fields of Agent Data New are:\n {:?}", agent_data_new);
 
     match config.agent_data_path.as_ref() {
         "" => info!("Agent Data not stored"),
@@ -499,6 +506,7 @@ async fn main() -> Result<()> {
     } else {
         None
     };
+    debug!("The device_id is: {:?} (If None, then IAK/IDevID is not enabled. Else IAK/IDevID and respective certificates are obtained)", device_id);
 
     let (attest, signature) = if let Some(dev_id) = &mut device_id {
         let qualifying_data = Data::try_from(agent_uuid.as_bytes())?;
@@ -517,6 +525,7 @@ async fn main() -> Result<()> {
     } else {
         (None, None)
     };
+    debug!("The attest variable is {:?}, the signature variable is {:?}.", attest, signature);
 
     // Generate key pair for secure transmission of u, v keys. The u, v
     // keys are two halves of the key used to decrypt the workload after
@@ -636,7 +645,7 @@ async fn main() -> Result<()> {
         ssl_context = None;
         warn!("mTLS disabled, Tenant and Verifier will reach out to agent via HTTP");
     }
-    debug!("Before Agent Registration Config\n\n");
+    debug!("After MTLS configuration\n");
 
     let ac = AgentRegistrationConfig {
         contact_ip: config.contact_ip.clone(),
@@ -646,7 +655,7 @@ async fn main() -> Result<()> {
         enable_iak_idevid: config.enable_iak_idevid,
         ek_handle: config.ek_handle.clone(),
     };
-    debug!("Before Agent Registration\n\n");
+    debug!("Before Agent Registration Config\nAgent Registration Config (ac): {:?}", ac);
 
     let aa = AgentRegistration {
         ak,
@@ -660,6 +669,8 @@ async fn main() -> Result<()> {
         signature,
         ak_handle,
     };
+    debug!("Before Agent Registration\nAgent registration (aa): {:?}\n", aa);
+
     match keylime::agent_registration::register_agent(aa, &mut ctx).await {
         Ok(()) => (),
         Err(e) => {
