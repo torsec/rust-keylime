@@ -115,13 +115,18 @@ impl RegistrarClientBuilder {
             info!("Registrar at '{addr}' does not support the '/version' endpoint");
             return Err(RegistrarClientBuilderError::RegistrarNoVersion);
         }
+        debug!("HERE\n");
 
         let resp: Response<KeylimeRegistrarVersion> = resp.json().await?;
+
+        debug!("HERE\n");
 
         self.registrar_current_api_version =
             Some(resp.results.current_version.clone());
         self.registrar_supported_api_versions =
             Some(resp.results.supported_versions);
+
+            debug!("HERE\n");
 
         Ok(resp.results.current_version)
     }
@@ -152,6 +157,7 @@ impl RegistrarClientBuilder {
                     }
                 },
             };
+        debug!("Registrar API VERSION {:?}\n", registrar_api_version);
 
         Ok(RegistrarClient {
             supported_api_versions: self
@@ -304,20 +310,30 @@ impl RegistrarClient {
             &addr, &ai.uuid
         );
 
+        debug!("HELLOO {:?}\n", addr);
+
+        // Qua l'agent si mette ad aspetare la risposta dal Registrar
+        
         let resp = reqwest::Client::new()
             .post(&addr)
             .json(&data)
             .send()
             .await?;
 
+        info!("The response from Registrar is:\n {:?}\n", resp);
+
         if !resp.status().is_success() {
+            println!("Erroreeeee\n");
             return Err(RegistrarClientError::Registration {
                 addr,
                 code: resp.status().as_u16(),
             });
         }
+        debug!("HELLOO PASSED resp from Registrar\n");
 
         let resp: Response<RegisterResponseResults> = resp.json().await?;
+
+        debug!("Just before return to agent_registration.rs\n");
 
         Ok(resp.results.blob.unwrap_or_default())
     }
@@ -351,9 +367,11 @@ impl RegistrarClient {
     ) -> Result<Vec<u8>, RegistrarClientError> {
         // The current Registrar API version is enabled and should work
         if ai.enabled_api_versions.contains(&self.api_version.as_ref()) {
+            debug!("Current version is already OK. Register Agent\n");
             return self.try_register_agent(ai, &self.api_version).await;
         }
-        debug!("I am in register_agent\n\n");
+        debug!("I am in register_agent. The API version is {:?}\n", self.api_version);
+        debug!("The list of API versions is {:?}\n", ai.enabled_api_versions);
 
         // In case the registrar does not support the '/version' endpoint, try the enabled API
         // versions
@@ -463,6 +481,7 @@ impl RegistrarClient {
     ) -> Result<(), RegistrarClientError> {
         // The current Registrar API version is enabled and should work
         if ai.enabled_api_versions.contains(&self.api_version.as_ref()) {
+            debug!("Current version is already OK. Activate Agent\n");
             return self
                 .try_activate_agent(auth_tag, ai, &self.api_version)
                 .await;

@@ -91,6 +91,8 @@ use tss_esapi::{
 };
 use uuid::Uuid;
 
+use std::time::Instant;           // Duration already included
+
 #[macro_use]
 extern crate static_assertions;
 
@@ -126,6 +128,8 @@ pub struct QuoteData<'a> {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
+
+    let now = Instant::now();
     // Print --help information
     let matches = ClapApp::new("keylime_agent")
         .about("A Rust implementation of the Keylime agent")
@@ -338,10 +342,16 @@ async fn main() -> Result<()> {
     // Gather EK values and certs
     // ??
     debug!("Before create EK");
+    let ek_start =  now.elapsed().as_secs_f64();
+    println!("Before EK ({}): {:.6} s", config.tpm_signing_alg, ek_start);   // .as_nanos()
+
     let ek_result = match config.ek_handle.as_ref() {
         "" => ctx.create_ek(tpm_encryption_alg, None)?,
         s => ctx.create_ek(tpm_encryption_alg, Some(s))?,
     };
+    let ek_end =  now.elapsed().as_secs_f64();
+    println!("After EK ({}): {:.6} s", config.tpm_signing_alg, ek_end);
+    println!("EK Creation Time ({}): {:.6} s\n", config.tpm_signing_alg, ek_end - ek_start);
     debug!("After create EK");
 
     let ek_hash = match tpm_signing_alg {
@@ -448,14 +458,27 @@ async fn main() -> Result<()> {
         Some((ak_handle, ak)) => (ak_handle, ak),
         None => {
             debug!("Endorsment Key Handle: {:?}\n", ek_result.key_handle);
+            debug!("Before create_ak\n");
+            let ak_creation_start = now.elapsed().as_secs_f64();
+            println!("Before AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_start);
             let new_ak = ctx.create_ak(
                 ek_result.key_handle,
                 tpm_hash_alg,
                 tpm_encryption_alg,
                 tpm_signing_alg,
             )?;
+            let ak_creation_end = now.elapsed().as_secs_f64();
+            println!("After AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_end);
+            println!("AK Creation Time ({}): {:.6} s\n", config.tpm_signing_alg, ak_creation_end - ak_creation_start);
             debug!("After create_ak\n");
+            debug!("Before load_ak\n");
+            let ak_load_start = now.elapsed().as_secs_f64();
+            println!("Before AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_start);
             let ak_handle = ctx.load_ak(ek_result.key_handle, &new_ak)?;
+            let ak_load_end = now.elapsed().as_secs_f64();
+            println!("After AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_end);
+            debug!("After load_ak\n");
+            println!("AK Load Time ({}): {:.6} s\n", config.tpm_signing_alg, ak_load_end - ak_load_start);
             (ak_handle, new_ak)
         }
     };
@@ -567,6 +590,7 @@ async fn main() -> Result<()> {
             }
         }
     };
+    debug!("The nk_pub is: {:?}\nThe nk_priv is: {:?}\n\n", nk_pub, nk_priv);
 
     let cert: X509;
     let mtls_cert;
@@ -671,13 +695,15 @@ async fn main() -> Result<()> {
     };
     debug!("Before Agent Registration\nAgent registration (aa): {:?}\n", aa);
 
+    println!("Time elapsed before registration ({}): {:.6} s", config.tpm_signing_alg, now.elapsed().as_secs_f64());
+
     match keylime::agent_registration::register_agent(aa, &mut ctx).await {
         Ok(()) => (),
         Err(e) => {
             error!("Failed to register agent: {e:?}");
         }
     }
-    debug!("After receiving response from Registrar\n\n");
+    debug!("After receiving response from Registrar. The Agent is ACTIVATED-REGISTERED/ACTIVATED\n");
 
     let (mut payload_tx, mut payload_rx) =
         mpsc::channel::<payloads::PayloadMessage>(1);
@@ -703,6 +729,8 @@ async fn main() -> Result<()> {
         }
         s => PathBuf::from(s),
     };
+
+    debug!("The revocation certificates are available at: {:?}", revocation_cert);
 
     let revocation_actions_dir = config.revocation_actions_dir.clone();
 
@@ -746,6 +774,8 @@ async fn main() -> Result<()> {
         tpmcontext: Mutex::new(ctx),
         work_dir,
     });
+
+    debug!("After Quote Data, that is:\n{:?}\n", quotedata);
 
     let actix_server = HttpServer::new(move || {
         let mut app = App::new()
@@ -830,6 +860,8 @@ async fn main() -> Result<()> {
         server = actix_server.bind(format!("{ip}:{port}"))?.run();
         info!("Listening on http://{ip}:{port}");
     };
+
+    debug!("Do I arrive here?\n");
 
     let server_handle = server.handle();
     let server_task = rt::spawn(server).map_err(Error::from);

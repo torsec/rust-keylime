@@ -39,6 +39,15 @@ pub struct AgentRegistration {
     pub ak_handle: KeyHandle,
 }
 
+fn vec_to_byte_string(vec: &[u8]) -> String {
+    let mut s = String::from("b\"");
+    for &b in vec {
+        s.push_str(&format!("\\x{:02x}", b));
+    }
+    s.push('"');
+    s
+}
+
 pub async fn register_agent(
     aa: AgentRegistration,
     ctx: &mut tpm::Context<'_>,
@@ -73,6 +82,7 @@ pub async fn register_agent(
 
     // Set the IAK/IDevID related fields, if enabled
     if aa.agent_registration_config.enable_iak_idevid {
+        debug!("I enter in the if case 'Set the IAK/IDevID related fields, if enabled'\n");
         let (Some(dev_id), Some(attest), Some(signature)) =
             (&aa.device_id, aa.attest, aa.signature)
         else {
@@ -118,6 +128,32 @@ pub async fn register_agent(
 
     info!("Before requesting keyblob material. I.E. Before registrar_client.rs\n\n");
     // Request keyblob material
+    info!("The AgentIdentity is: {:?}\n", ai);
+
+    // Guarda https://doc.rust-lang.org/rust-by-example/hello/print.html per vedere l'output formattato in Rust
+    // {:x} stampa in esadecimale, ma non funziona in questo caso
+    // error[E0277]: the trait bound `[u8]: LowerHex` is not satisfied. the trait `LowerHex` is not implemented for `[u8]`, which is required by `&[u8]: LowerHex`
+    info!("The ak_pub is: {:?}\n", ai.ak_pub);
+    // info!("The ak_pub is: {:x}\n", ai.ak_pub);       // Avevo provato anche così, ma non funzionava
+    let decoded_string = vec_to_byte_string(ai.ak_pub);
+    let decoded2_string = hex::decode("48656c6c6f20776f726c6421").unwrap();
+
+    //println!("The ak public key is:\n{}\n\n", decoded_string);
+
+    let ek_string = vec_to_byte_string(ai.ek_pub);
+    //println!("The ek public key is:\n{}\n\n", ek_string);
+
+    // println!("{}", String::from_utf8(decoded_string).unwrap());
+    //println!("{}\n\n", String::from_utf8(decoded2_string).unwrap());
+
+    // Forse non gli piaceva il match perche facevo prima .unwrap()
+
+    //  match decoded2_string {
+    //     Ok(b) => {println!("{}", String::from_utf8(b).unwrap()); println!("{:?}", String::from_utf8(b).unwrap())},
+    //     Err(e) => eprintln!("Invalid hex: {}", e),
+    // }
+    
+     
     let keyblob = registrar_client.register_agent(&ai).await?;
 
     info!("SUCCESS: Agent {} registered", &aa.agent_uuid);
@@ -134,6 +170,8 @@ pub async fn register_agent(
     if aa.agent_registration_config.ek_handle.is_empty() {
         ctx.flush_context(aa.ek_result.key_handle.into())?;
     }
+
+    debug!("No flush of EK\n");
 
     let mackey = general_purpose::STANDARD.encode(key.value());
     let auth_tag =
