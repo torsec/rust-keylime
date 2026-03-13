@@ -1367,7 +1367,13 @@ impl Context<'_> {
         let (credential, secret) = parse_cred_and_secret(keyblob)?;
         let mut policy_digests = DigestList::new();
         let (parent_public, _, _) = ctx.read_public(ek)?;
+
+        debug!("Parent public:\n{:?}\n", parent_public);
         let ek_hash_alg = parent_public.name_hashing_algorithm();
+
+        debug!("EK name hashing algorithm: {:?}\n", ek_hash_alg);
+
+        
         let ek_symmetric =
             parent_public.symmetric_algorithm().ok_or_else(|| {
                 TpmError::TSSReadPublicError {
@@ -1397,6 +1403,8 @@ impl Context<'_> {
             }
             _ => (),
         };
+
+        debug!("Do I arrive here CHECK?\n");
 
         let ek_auth = self.create_empty_session(
             &mut ctx,

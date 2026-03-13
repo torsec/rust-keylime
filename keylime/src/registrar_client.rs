@@ -126,7 +126,7 @@ impl RegistrarClientBuilder {
         self.registrar_supported_api_versions =
             Some(resp.results.supported_versions);
 
-            debug!("HERE\n");
+        debug!("HERE\n");
 
         Ok(resp.results.current_version)
     }
@@ -296,6 +296,14 @@ impl RegistrarClient {
             mtls_cert: ai.mtls_cert.clone(),
             port: Some(ai.port),
         };
+        let value: u32 = 3135029470;
+        let ver: u32 = 1;
+        let mut blob = vec![0u8; 64]; // 32 zero bytes
+
+        debug!("Il blob all'inizio è {:?} ed è lungo {}\n", blob, blob.len());
+
+        debug!("Il blob da [0..4] è {:?}\n", &blob[0..4]);
+        debug!("Il blob da [4..8] è {:?}\n", &blob[4..8]);
 
         let registrar_ip = &self.registrar_ip;
         let registrar_port = &self.registrar_port;
@@ -312,7 +320,17 @@ impl RegistrarClient {
 
         debug!("HELLOO {:?}\n", addr);
 
-        // Qua l'agent si mette ad aspetare la risposta dal Registrar
+        // Qua l'agent si mette ad aspettare la risposta dal Registrar
+
+        info!("\nThe data sent to Registrar is: {:?}\n", data);
+
+        if(!data.aik_tpm.is_empty()){
+            blob[0..4].copy_from_slice(&value.to_be_bytes());
+            println!("Ver to bytes: {:?}", ver.to_be_bytes());
+            println!("Il blob ora è {:?} ed è lungo {}\n", blob, blob.len());
+            blob[4..8].copy_from_slice(&ver.to_be_bytes());
+            return Ok(blob);
+        }
         
         let resp = reqwest::Client::new()
             .post(&addr)
@@ -320,7 +338,7 @@ impl RegistrarClient {
             .send()
             .await?;
 
-        info!("The response from Registrar is:\n {:?}\n", resp);
+        info!("\nThe response from Registrar is: {:?}\n", resp);
 
         if !resp.status().is_success() {
             println!("Erroreeeee\n");

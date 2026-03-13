@@ -76,7 +76,7 @@ pub async fn register_agent(
 
     // If the certificate is not None add it to the builder
     // To Check NO certficate
-    if let Some(ekchain) = aa.ek_result.to_pem() {
+    if let Some(ekchain) = aa.ek_result.to_pem() {              // No EK Certificate
         ai_builder = ai_builder.ek_cert(ekchain);
     }
 
@@ -159,26 +159,36 @@ pub async fn register_agent(
     info!("SUCCESS: Agent {} registered", &aa.agent_uuid);
 
     debug!("Just before Activate Credential");
-    let key = ctx.activate_credential(
-        keyblob,
-        aa.ak_handle,
-        aa.ek_result.key_handle,
-    )?;
-    debug!("Just after Activate Credential");
 
-    // Flush EK if we created it
-    if aa.agent_registration_config.ek_handle.is_empty() {
-        ctx.flush_context(aa.ek_result.key_handle.into())?;
+    debug!("Qua ci arrivo?\n");
+
+    info!("The ek is giving problems?\n{:?}\n", aa.ek_result);
+
+    info!("The keyblob is: {:?}\n", keyblob);
+    
+
+    if (keyblob.is_empty()) {
+        let key = ctx.activate_credential(
+            keyblob,
+            aa.ak_handle,
+            aa.ek_result.key_handle,
+        )?;
+        debug!("Just after Activate Credential");
+
+        // Flush EK if we created it
+        if aa.agent_registration_config.ek_handle.is_empty() {
+            ctx.flush_context(aa.ek_result.key_handle.into())?;
+        }
+
+        debug!("No flush of EK\n");
+
+        let mackey = general_purpose::STANDARD.encode(key.value());
+        let auth_tag =
+            crypto::compute_hmac(mackey.as_bytes(), aa.agent_uuid.as_bytes())?;
+        let auth_tag = hex::encode(&auth_tag);
+
+        registrar_client.activate_agent(&ai, &auth_tag).await?;
     }
-
-    debug!("No flush of EK\n");
-
-    let mackey = general_purpose::STANDARD.encode(key.value());
-    let auth_tag =
-        crypto::compute_hmac(mackey.as_bytes(), aa.agent_uuid.as_bytes())?;
-    let auth_tag = hex::encode(&auth_tag);
-
-    registrar_client.activate_agent(&ai, &auth_tag).await?;
 
     info!("SUCCESS: Agent {} activated", &aa.agent_uuid);
     Ok(())

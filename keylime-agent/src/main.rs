@@ -66,6 +66,7 @@ use log::*;
 use openssl::{
     hash::MessageDigest, pkey::{PKey, Private, Public}, sha::sha256, x509::X509
 };
+use serde::de;
 use std::{
     convert::TryFrom,
     fs,
@@ -142,6 +143,9 @@ async fn main() -> Result<()> {
 
     // Load config
     let mut config = config::AgentConfig::new()?;
+
+    // Print configuration options at debug level
+    debug!("Configuration options:\n{:#?}", config);
 
     // load path for IMA logfile
     #[cfg(test)]
@@ -343,15 +347,15 @@ async fn main() -> Result<()> {
     // ??
     debug!("Before create EK");
     let ek_start =  now.elapsed().as_secs_f64();
-    println!("Before EK ({}): {:.6} s", config.tpm_signing_alg, ek_start);   // .as_nanos()
+    println!("Before Create EK ({}): {:.6} s", config.tpm_signing_alg, ek_start);   // .as_nanos()
 
     let ek_result = match config.ek_handle.as_ref() {
         "" => ctx.create_ek(tpm_encryption_alg, None)?,
         s => ctx.create_ek(tpm_encryption_alg, Some(s))?,
     };
     let ek_end =  now.elapsed().as_secs_f64();
-    println!("After EK ({}): {:.6} s", config.tpm_signing_alg, ek_end);
-    println!("EK Creation Time ({}): {:.6} s\n", config.tpm_signing_alg, ek_end - ek_start);
+    println!("After Create EK ({}): {:.6} s", config.tpm_signing_alg, ek_end);
+    println!("\nEK Creation Time ({}): {:.6} s\n\n", config.tpm_signing_alg, ek_end - ek_start);
     debug!("After create EK");
 
     let ek_hash = match tpm_signing_alg {
@@ -455,12 +459,16 @@ async fn main() -> Result<()> {
     debug!("Before choosing to Create a NEW AK or Loading an OLD AK");
     debug!("The AK now is: {:?}", old_ak);
     let (ak_handle, ak) = match old_ak {
-        Some((ak_handle, ak)) => (ak_handle, ak),
+        Some((ak_handle, ak)) => {
+            println!("Some case\n");
+            (ak_handle, ak)
+        },
         None => {
+            println!("None case\n");
             debug!("Endorsment Key Handle: {:?}\n", ek_result.key_handle);
             debug!("Before create_ak\n");
             let ak_creation_start = now.elapsed().as_secs_f64();
-            println!("Before AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_start);
+            println!("Before Create AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_start);
             let new_ak = ctx.create_ak(
                 ek_result.key_handle,
                 tpm_hash_alg,
@@ -468,17 +476,17 @@ async fn main() -> Result<()> {
                 tpm_signing_alg,
             )?;
             let ak_creation_end = now.elapsed().as_secs_f64();
-            println!("After AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_end);
-            println!("AK Creation Time ({}): {:.6} s\n", config.tpm_signing_alg, ak_creation_end - ak_creation_start);
+            println!("After Create AK ({}): {:.6} s", config.tpm_signing_alg, ak_creation_end);
+            println!("\nAK Creation Time ({}): {:.6} s\n\n", config.tpm_signing_alg, ak_creation_end - ak_creation_start);
             debug!("After create_ak\n");
             debug!("Before load_ak\n");
             let ak_load_start = now.elapsed().as_secs_f64();
-            println!("Before AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_start);
+            println!("Before Load AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_start);
             let ak_handle = ctx.load_ak(ek_result.key_handle, &new_ak)?;
             let ak_load_end = now.elapsed().as_secs_f64();
-            println!("After AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_end);
+            println!("After Load AK ({}): {:.6} s", config.tpm_signing_alg, ak_load_end);
             debug!("After load_ak\n");
-            println!("AK Load Time ({}): {:.6} s\n", config.tpm_signing_alg, ak_load_end - ak_load_start);
+            println!("\nAK Load Time ({}): {:.6} s\n\n", config.tpm_signing_alg, ak_load_end - ak_load_start);
             (ak_handle, new_ak)
         }
     };
@@ -590,7 +598,7 @@ async fn main() -> Result<()> {
             }
         }
     };
-    debug!("The nk_pub is: {:?}\nThe nk_priv is: {:?}\n\n", nk_pub, nk_priv);
+    debug!("The nk_pub is: {:?}. The nk_priv is: {:?}\n\n", nk_pub, nk_priv);
 
     let cert: X509;
     let mtls_cert;
@@ -777,6 +785,8 @@ async fn main() -> Result<()> {
 
     debug!("After Quote Data, that is:\n{:?}\n", quotedata);
 
+
+    // qua vado al Verifier ??
     let actix_server = HttpServer::new(move || {
         let mut app = App::new()
             .wrap(middleware::ErrorHandlers::new().handler(
