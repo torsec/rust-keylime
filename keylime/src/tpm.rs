@@ -1364,6 +1364,7 @@ impl Context<'_> {
     ) -> Result<Digest> {
         let mut ctx = self.inner.lock().unwrap(); //#[allow_ci]
 
+        // punto critico
         let (credential, secret) = parse_cred_and_secret(keyblob)?;
         let mut policy_digests = DigestList::new();
         let (parent_public, _, _) = ctx.read_public(ek)?;
@@ -1373,15 +1374,33 @@ impl Context<'_> {
 
         debug!("EK name hashing algorithm: {:?}\n", ek_hash_alg);
 
+        debug!("The symmetric algorithm of parent_public is: {:?}", parent_public.symmetric_algorithm());
+
         
-        let ek_symmetric =
-            parent_public.symmetric_algorithm().ok_or_else(|| {
-                TpmError::TSSReadPublicError {
-                    source: tss_esapi::Error::WrapperError(
-                        tss_esapi::WrapperErrorKind::InvalidParam,
-                    ),
-                }
-            })?;
+        // let ek_symmetric =
+        //     parent_public.symmetric_algorithm().ok_or_else(|| {
+        //         TpmError::TSSReadPublicError {
+        //             source: tss_esapi::Error::WrapperError(
+        //                 tss_esapi::WrapperErrorKind::InvalidParam,
+        //             ),
+        //         }
+        //     })?;
+
+        // let ek_symmetric = None;         // Questo fa partire "ek_symmetric.into(),|   ^^^^ the trait `std::convert::From<std::option::Option<_>>` is not implemented for `SymmetricDefinition`, which is required by `std::option::Option<_>: Into<_>`
+
+
+        // Uso AES_128_CFB per il momento
+        let ek_symmetric = match parent_public.symmetric_algorithm() {
+            Some(alg) => alg,
+            None => {
+                debug!("EK has no symmetric algorithm, falling back to AES_128_CFB");
+                SymmetricDefinitionObject::AES_128_CFB
+            }
+        };
+
+        // let ek_symmetric = SymmetricDefinition::Aes { key_bits: (), mode: () }
+
+        debug!("After symmetric algorithm problem");
         match ek_hash_alg {
             HashingAlgorithm::Sha384 => {
                 policy_digests
@@ -1534,10 +1553,20 @@ impl Context<'_> {
         hash_alg: HashAlgorithm,
         sign_alg: SignAlgorithm,
     ) -> Result<String> {
+        debug!("Calling TPM quote with nonce: {}", hex::encode(nonce));
+        debug!("Mask: {:#x}", mask);
+        let pem = pubkey.public_key_to_pem();
+        debug!("The public key is: {:?}", pem);
+        debug!("Hash algorithm: {:?}", hash_alg);
+        debug!("Sign algorithm: {:?}", sign_alg);
+
         let nk_digest = pubkey_to_tpm_digest(pubkey, hash_alg)?;
+        debug!("The digest of the public key is: {:?}", nk_digest);
 
         let pcrlist =
             self.build_pcr_list(nk_digest, mask, hash_alg.into())?;
+
+        debug!("The PCR selection list is: {:?}", pcrlist);
 
         let mut ctx = self.inner.lock().unwrap(); //#[allow_ci]
 
@@ -2157,6 +2186,7 @@ fn check_if_pcr_data_and_attestation_match(
     pcr_data: &PcrData,
     attestation: Attest,
 ) -> Result<bool> {
+    log::debug!("Checking if PCR data and attestation match...");
     let pcr_data = Vec::<TPML_DIGEST>::from(pcr_data.clone());
 
     let quote_info = match attestation.attested() {
@@ -2214,11 +2244,21 @@ fn perform_quote_and_pcr_read(
     for attempt in 0..NUM_ATTESTATION_ATTEMPTS {
         // TSS ESAPI quote does not create pcr blob, so create it separately
         let (pcrs_read, pcr_data) = make_pcr_blob(context, pcrlist.clone())?;
+        debug!("pcr data read from TPM: {pcr_data:?}");
+        debug!("pcr selection list read from TPM: {pcrs_read:?}");
 
+
+        debug!("The SignatureScheme used for quote is: {:?}", sign_scheme);
+
+        debug!("BEFORE GENERTING QUOTE\n");
         // create quote
         let (attestation, sig) = context
             .quote(ak_handle, nonce.clone(), sign_scheme, pcrs_read.clone())
             .map_err(|source| TpmError::TSSQuoteError { source })?;
+        debug!("AFTER GENERTING QUOTE\n");
+
+        debug!("The attestation generated from quote is: {attestation:?}");
+        debug!("The signature generated from quote is: {sig:?}");
 
         // Check whether the attestation and pcr_data match
         if check_if_pcr_data_and_attestation_match(

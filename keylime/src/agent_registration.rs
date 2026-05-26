@@ -15,6 +15,8 @@ use tss_esapi::{
     handles::KeyHandle, structures::PublicBuffer, traits::Marshall,
 };
 
+use crate::algorithms::{EncryptionAlgorithm, SignAlgorithm};
+
 #[derive(Debug)]
 pub struct AgentRegistrationConfig {
     pub contact_ip: String,
@@ -37,6 +39,8 @@ pub struct AgentRegistration {
     pub attest: Option<tss_esapi::structures::Attest>,
     pub signature: Option<tss_esapi::structures::Signature>,
     pub ak_handle: KeyHandle,
+    pub tpm_encryption_alg: Option<EncryptionAlgorithm>,
+    pub tpm_signing_alg: Option<SignAlgorithm>,
 }
 
 fn vec_to_byte_string(vec: &[u8]) -> String {
@@ -154,7 +158,7 @@ pub async fn register_agent(
     // }
     
      
-    let keyblob = registrar_client.register_agent(&ai).await?;
+    let keyblob = registrar_client.register_agent(&ai, aa.tpm_encryption_alg, aa.tpm_signing_alg).await?;
 
     info!("SUCCESS: Agent {} registered", &aa.agent_uuid);
 
@@ -165,9 +169,40 @@ pub async fn register_agent(
     info!("The ek is giving problems?\n{:?}\n", aa.ek_result);
 
     info!("The keyblob is: {:?}\n", keyblob);
+    info!("The ak handle is: {:?}\n", aa.ak_handle);
+    info!("The ek handle is: {:?}\n", aa.ek_result.key_handle);
     
+    let testare = 0;
 
-    if (keyblob.is_empty()) {
+    debug!("The tpm encryption algorithm is: {:?}, the signing algorithm is: {:?}", aa.tpm_encryption_alg, aa.tpm_signing_alg);
+
+    if (Some(EncryptionAlgorithm::Mldsa87) == aa.tpm_encryption_alg) && (Some(SignAlgorithm::Mldsa87) == aa.tpm_signing_alg) {
+        debug!("I am in the if case of Mldsa87\n");
+        registrar_client.activate_agent(&ai, "dummy_auth_tag").await?;
+    }
+    // if (keyblob.is_empty()) {
+    //     let key = ctx.activate_credential(
+    //         keyblob,
+    //         aa.ak_handle,
+    //         aa.ek_result.key_handle,
+    //     )?;
+    //     debug!("Just after Activate Credential");
+
+    //     // Flush EK if we created it
+    //     if aa.agent_registration_config.ek_handle.is_empty() {
+    //         ctx.flush_context(aa.ek_result.key_handle.into())?;
+    //     }
+
+    //     debug!("No flush of EK\n");
+
+    //     let mackey = general_purpose::STANDARD.encode(key.value());
+    //     let auth_tag =
+    //         crypto::compute_hmac(mackey.as_bytes(), aa.agent_uuid.as_bytes())?;
+    //     let auth_tag = hex::encode(&auth_tag);
+
+    //     registrar_client.activate_agent(&ai, &auth_tag).await?;
+    // }
+    else{
         let key = ctx.activate_credential(
             keyblob,
             aa.ak_handle,

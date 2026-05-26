@@ -700,6 +700,8 @@ async fn main() -> Result<()> {
         attest,
         signature,
         ak_handle,
+        tpm_encryption_alg:Some(tpm_encryption_alg),
+        tpm_signing_alg: Some(tpm_signing_alg),
     };
     debug!("Before Agent Registration\nAgent registration (aa): {:?}\n", aa);
 
@@ -787,6 +789,9 @@ async fn main() -> Result<()> {
 
 
     // qua vado al Verifier ??
+    // Start HTTP server. Mi metto ad ascoltare le richieste da Tenant e Verifier, che poi vengono gestite dalle API definite in api.rs
+    // che a loro volta interagiscono con il TPM e con le altre componenti dell'agente per restituire le informazioni richieste
+    // da Tenant e Verifier (es. quote, IMA measurement list, etc)
     let actix_server = HttpServer::new(move || {
         let mut app = App::new()
             .wrap(middleware::ErrorHandlers::new().handler(
@@ -821,6 +826,7 @@ async fn main() -> Result<()> {
 
         for version in &api_versions {
             // This should never fail, thus unwrap should never panic
+            debug!("Prova ad aggiungere service per API version {}", version);
             let scope = api::get_api_scope(version).unwrap(); //#[allow_ci]
             app = app.service(scope);
         }
@@ -871,7 +877,7 @@ async fn main() -> Result<()> {
         info!("Listening on http://{ip}:{port}");
     };
 
-    debug!("Do I arrive here?\n");
+    debug!("Do I arrive here? After starting the server (2 workers)\n");
 
     let server_handle = server.handle();
     let server_task = rt::spawn(server).map_err(Error::from);

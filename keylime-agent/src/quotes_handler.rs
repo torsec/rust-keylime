@@ -58,11 +58,17 @@ async fn identity(
         ));
     }
 
-    debug!("Calling Identity Quote with nonce: {}", param.nonce);
+    debug!("\nCalling Identity Quote with nonce: {}\n", param.nonce);
+
+    debug!("The QuoteData is: {:?}\n", data);
+    debug!("The TPM context is: {:?}\n", data.tpmcontext);
 
     // must unwrap here due to lock mechanism
     // https://github.com/rust-lang-nursery/failure/issues/192
     let mut context = data.tpmcontext.lock().unwrap(); //#[allow_ci]
+
+
+    debug!("Does the unwrap work? The TPM context is: {:?}\n", context);
 
     let tpm_quote = match context.quote(
         param.nonce.as_bytes(),
@@ -83,6 +89,8 @@ async fn identity(
             );
         }
     };
+
+    debug!("Finished Quote in identity endpoint\n");
 
     let mut quote = KeylimeQuote {
         quote: tpm_quote,

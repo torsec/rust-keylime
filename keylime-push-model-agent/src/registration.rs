@@ -63,6 +63,8 @@ pub async fn register_agent<T: PushModelConfigTrait>(
         attest: None, // TODO: Check how to proceed with attestation, normally, no device ID means no attest
         signature: None, // TODO: Normally, no device ID means no signature
         ak_handle: context_info.ak_handle,
+        tpm_encryption_alg: None,
+        tpm_signing_alg: None,
     };
     let ctx = context_info.get_mutable_tpm_context();
     match keylime::agent_registration::register_agent(aa, ctx).await {

@@ -7,6 +7,8 @@ use thiserror::Error;
 
 use crate::version::KeylimeRegistrarVersion;
 
+use crate::algorithms::{EncryptionAlgorithm, SignAlgorithm};
+
 pub const UNKNOWN_API_VERSION: &str = "unknown";
 
 fn is_empty(buf: &[u8]) -> bool {
@@ -281,6 +283,8 @@ impl RegistrarClient {
         &self,
         ai: &AgentIdentity<'_>,
         api_version: &str,
+        tpm_encryption_alg: Option<EncryptionAlgorithm>,
+        tpm_signing_alg: Option<SignAlgorithm>,
     ) -> Result<Vec<u8>, RegistrarClientError> {
         let data = Register {
             aik_tpm: ai.ak_pub,
@@ -322,15 +326,11 @@ impl RegistrarClient {
 
         // Qua l'agent si mette ad aspettare la risposta dal Registrar
 
-        info!("\nThe data sent to Registrar is: {:?}\n", data);
+        println!("\n");
 
-        if(!data.aik_tpm.is_empty()){
-            blob[0..4].copy_from_slice(&value.to_be_bytes());
-            println!("Ver to bytes: {:?}", ver.to_be_bytes());
-            println!("Il blob ora è {:?} ed è lungo {}\n", blob, blob.len());
-            blob[4..8].copy_from_slice(&ver.to_be_bytes());
-            return Ok(blob);
-        }
+        info!("The data sent to Registrar is: {:?}\n", data);
+
+        
         
         let resp = reqwest::Client::new()
             .post(&addr)
@@ -339,6 +339,27 @@ impl RegistrarClient {
             .await?;
 
         info!("\nThe response from Registrar is: {:?}\n", resp);
+
+        //debug!("Sleeping 10 seconds...");
+        //std::thread::sleep(std::time::Duration::from_secs(10)); // Sleep for 5 seconds to simulate waiting for the response from the Registrar
+
+
+        let testare = 1 ;
+
+        debug!("The tpm encryption algorithm is: {:?}, the signing algorithm is: {:?}", tpm_encryption_alg, tpm_signing_alg);
+
+
+        if testare == 1 {
+            if (Some(EncryptionAlgorithm::Mldsa87) == tpm_encryption_alg) && (Some(SignAlgorithm::Mldsa87) == tpm_signing_alg) {
+                if !data.aik_tpm.is_empty() {
+                    blob[0..4].copy_from_slice(&value.to_be_bytes());
+                    println!("Ver to bytes: {:?}", ver.to_be_bytes());
+                    println!("Il blob ora è {:?} ed è lungo {}\n", blob, blob.len());
+                    blob[4..8].copy_from_slice(&ver.to_be_bytes());
+                    return Ok(blob);
+                }
+            }
+        }
 
         if !resp.status().is_success() {
             println!("Erroreeeee\n");
@@ -382,11 +403,13 @@ impl RegistrarClient {
     pub async fn register_agent(
         &mut self,
         ai: &AgentIdentity<'_>,
+        tpm_encryption_alg: Option<EncryptionAlgorithm>,
+        tpm_signing_alg: Option<SignAlgorithm>,
     ) -> Result<Vec<u8>, RegistrarClientError> {
         // The current Registrar API version is enabled and should work
         if ai.enabled_api_versions.contains(&self.api_version.as_ref()) {
             debug!("Current version is already OK. Register Agent\n");
-            return self.try_register_agent(ai, &self.api_version).await;
+            return self.try_register_agent(ai, &self.api_version, tpm_encryption_alg, tpm_signing_alg).await;
         }
         debug!("I am in register_agent. The API version is {:?}\n", self.api_version);
         debug!("The list of API versions is {:?}\n", ai.enabled_api_versions);
@@ -397,7 +420,7 @@ impl RegistrarClient {
             // Assume the list of enabled versions is ordered from the oldest to the newest
             for api_version in ai.enabled_api_versions.iter().rev() {
                 info!("Trying to register agent using API version {api_version}");
-                let r = self.try_register_agent(ai, api_version).await;
+                let r = self.try_register_agent(ai, api_version, tpm_encryption_alg, tpm_signing_alg).await;
 
                 // If successful, cache the API version for future requests
                 if r.is_ok() {
@@ -417,7 +440,7 @@ impl RegistrarClient {
                     if supported.contains(&api_version.to_string()) {
                         // Found a compatible API version, it should work
                         let r =
-                            self.try_register_agent(ai, api_version).await;
+                            self.try_register_agent(ai, api_version, tpm_encryption_alg, tpm_signing_alg).await;
 
                         // If successful, cache the API version for future requests
                         if r.is_ok() {
@@ -462,6 +485,9 @@ impl RegistrarClient {
 
         let resp =
             reqwest::Client::new().put(&addr).json(&data).send().await?;
+
+        //debug!("Sleeping 10 seconds...");
+        //std::thread::sleep(std::time::Duration::from_secs(10));
 
         if !resp.status().is_success() {
             return Err(RegistrarClientError::Activation {
